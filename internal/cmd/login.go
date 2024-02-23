@@ -1,65 +1,64 @@
-/*
-Copyright © 2022 Jeremy Levy jje.levy@gmail.com
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-*/
 package cmd
 
 import (
-	"os"
+	"fmt"
+	"net/http"
 
 	"github.com/recode-sh/cli/internal/dependencies"
 	"github.com/recode-sh/cli/internal/features"
 	"github.com/spf13/cobra"
 )
 
-// loginCmd represents the "recode login" command
+func TokenCallBack(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+
+	token, err := features.ExchangeCodeForToken(code)
+	if err != nil {
+		// Handle the error, maybe return it in the response
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Now you can print the token
+	fmt.Println("Token:", token)
+
+	// Add additional logic to handle the OAuth code and token
+}
+
+// LoginHandler handles the login requests
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	login := dependencies.ProvideLoginFeature()
+	loginInput := features.LoginInput{}
+
+	// Execute the login feature which initiates the OAuth flow
+	err := login.Execute(loginInput)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Normally, the login feature would redirect to the OAuth URL
+	// For API, return the URL in the response instead
+	// This is a placeholder, replace with actual OAuth URL generation logic
+	oAuthURL := "https://github.com/login/oauth/authorize"
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"url": "` + oAuthURL + `"}`))
+
+}
+
 var loginCmd = &cobra.Command{
-	Use: "login",
-
-	Short: "Connect a GitHub account to use with Recode",
-
-	Long: `Connect a GitHub account to use with Recode.
-
-Recode requires the following permissions:
-
-  - "Public SSH keys" and "Repositories" to let you access your repositories from your development environments
-
-  - "GPG Keys" and "Personal user data" to configure Git and sign your commits (verified badge)
-
-All your data (including the OAuth access token) will only be stored locally.`,
-
-	Example: "  recode login",
-
+	Use:   "login",
+	Short: "Log in to your GitHub account",
+	Long:  `Log in to your GitHub account via OAuth.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		loginInput := features.LoginInput{}
-
-		login := dependencies.ProvideLoginFeature()
-
-		err := login.Execute(loginInput)
-
-		if err != nil {
-			os.Exit(1)
-		}
+		// Handler logic here
 	},
 }
 
 func init() {
+
 	rootCmd.AddCommand(loginCmd)
 }
